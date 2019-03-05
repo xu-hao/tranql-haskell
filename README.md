@@ -32,7 +32,7 @@ Context
 
 Judgement
 ```
-<Context> |- <Expr> : <Type>
+<Judgement> ::= <Context> |- <Expr> : <Type>
 ```
 
 Typing Rule
@@ -60,7 +60,7 @@ G |- e1 : s    G, v : s B |- e2 : t
 -----------------------------------
 G |- LET v = e1 IN e2 : t
 
-G |- e_1 : Ind    ...    G |- e_n : Ind    G |- e : Prop
+G |- e_1 : t_1    ...    G |- e_n : t_n    G |- e : Prop
 --------------------------------------------------------
 G |- SELECT e_1 AS v_1, ..., e_n AS v_n WHERE e : Set
 ```
