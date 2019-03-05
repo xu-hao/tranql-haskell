@@ -6,6 +6,7 @@
        |   <Var>
        |   <Expr> <Expr>
        |   LET <Var> = <Expr> IN <Expr>
+       |   FRESH <Var> IN <Expr>
        |   SELECT <Selector>, ..., <Selector> WHERE <Expr>
 
 <Selector> ::= <Expr> AS <Var>
@@ -16,7 +17,8 @@
 
 Type
 ```
-<Type> ::= Ind
+<Type> ::= ReI
+       |   Ind
        |   Prop
        |   Set
        |   <Type> -> <Type>
@@ -46,8 +48,16 @@ G |- e1 : s -> t    G |- e2 : s
 -------------------------------
 G |- e1 e2 : t
 
-G |- e1 : s    G, v : s |- e2 : t
----------------------------------
+G |- e1 : ReI -> t    G |- e2 : Ind
+----------------------------------
+G |- e1 e2 : t
+
+G |- e1 : s    G, v : ReI |- e2 : t
+----------------------------------
+G |- FRESH v IN e2 : t
+
+G |- e1 : s    G, v : s B |- e2 : t
+-----------------------------------
 G |- LET v = e1 IN e2 : t
 
 G |- e_1 : Ind    ...    G |- e_n : Ind    G |- e : Prop
