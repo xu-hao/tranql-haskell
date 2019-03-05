@@ -8,7 +8,8 @@
        |   LET <Var> = <Expr> IN <Expr>
        |   FRESH <Var> : <Type> IN <Expr>
        |   SELECT <Selector>, ..., <Selector> WHERE <Expr>
-
+       |   <Expr> . <Field>
+       	
 <Selector> ::= <Expr> AS <Field>
 	   
 ```
@@ -64,5 +65,9 @@ G |- LET v = e1 IN e2 : t
 
 G |- e_1 : t_1    ...    G |- e_n : t_n    G |- e : Prop
 --------------------------------------------------------
-G |- SELECT e_1 AS v_1, ..., e_n AS v_n WHERE e : Set { v_1 : t_1, ..., v_n : t_n }
+G |- SELECT e_1 AS f_1, ..., e_n AS f_n WHERE e : Set { f_1 : t_1, ..., f_n : t_n }
+
+G |- e : { f_1 : t_1, ..., f_n : t_n }
+--------------------------------------
+G |- e.f_i : t_i
 ```
