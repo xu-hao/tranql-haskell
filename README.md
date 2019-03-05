@@ -9,7 +9,7 @@
        |   FRESH <Var> IN <Expr>
        |   SELECT <Selector>, ..., <Selector> WHERE <Expr>
 
-<Selector> ::= <Expr> AS <Var>
+<Selector> ::= <Expr> AS <String>
 	   
 ```
 
