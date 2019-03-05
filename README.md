@@ -9,7 +9,7 @@
        |   FRESH <Var> : <Type> IN <Expr>
        |   SELECT <Selector>, ..., <Selector> WHERE <Expr>
 
-<Selector> ::= <Expr> AS <String>
+<Selector> ::= <Expr> AS <Field>
 	   
 ```
 
@@ -20,7 +20,7 @@ Type
 <Type> ::= ( <Type> )
        |   <Base>
        |   Prop
-       |   { <Var> : <Type>, ..., <Var> : <Type> }
+       |   { <Field> : <Type>, ..., <Field> : <Type> }
        |   Set <Type>
        |   Rel <Type>
        |   <Type> -> <Type>
