@@ -6,7 +6,7 @@
        |   <Var>
        |   <Expr> <Expr>
        |   LET <Var> = <Expr> IN <Expr>
-       |   FRESH <Var> IN <Expr>
+       |   FRESH <Var> : <Type> IN <Expr>
        |   SELECT <Selector>, ..., <Selector> WHERE <Expr>
 
 <Selector> ::= <Expr> AS <String>
@@ -17,17 +17,19 @@
 
 Type
 ```
-<Type> ::= ReI
-       |   Ind
+<Type> ::= ( <Type> )
+       |   <Base>
        |   Prop
-       |   Set
+       |   { <Var> : <Type>, ..., <Var> : <Type> }
+       |   Set <Type>
+       |   Rel <Type>
        |   <Type> -> <Type>
 ```
 
-Context
+Typing Environment
 ```
-<Ctx> ::= <eps>
-      |   <Ctx>, <Var> : <Type>
+<TEnv> ::= <eps>
+       |   <TEnv>, <Var> : <Type>
 ```
 
 Judgement
@@ -48,13 +50,13 @@ G |- e1 : s -> t    G |- e2 : s
 -------------------------------
 G |- e1 e2 : t
 
-G |- e1 : ReI -> t    G |- e2 : Ind
+G |- e1 : Rel s -> t    G |- e2 : s
 -----------------------------------
 G |- e1 e2 : t
 
-G, v : ReI |- e2 : t
+G, v : Rel s |- e2 : t
 ----------------------
-G |- FRESH v IN e2 : t
+G |- FRESH v : s IN e2 : t
 
 G |- e1 : s    G, v : s |- e2 : t
 -----------------------------------
@@ -62,5 +64,5 @@ G |- LET v = e1 IN e2 : t
 
 G |- e_1 : t_1    ...    G |- e_n : t_n    G |- e : Prop
 --------------------------------------------------------
-G |- SELECT e_1 AS v_1, ..., e_n AS v_n WHERE e : Set
+G |- SELECT e_1 AS v_1, ..., e_n AS v_n WHERE e : Set { v_1 : t_1, ..., v_n : t_n }
 ```
