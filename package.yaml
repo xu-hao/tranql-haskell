@@ -22,12 +22,15 @@ description:         Please see the README on GitHub at <https://github.com/gith
 dependencies:
 - base >= 4.7 && < 5
 - parsec
+- transformers
+- containers
+- optparse-applicative
 
 library:
   source-dirs: src
 
 executables:
-  tranql-haskell-exe:
+  tranql-exe:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
@@ -38,7 +41,7 @@ executables:
     - tranql-haskell
 
 tests:
-  tranql-haskell-test:
+  tranql-test:
     main:                Spec.hs
     source-dirs:         test
     ghc-options:

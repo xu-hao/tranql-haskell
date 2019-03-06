@@ -17,6 +17,7 @@ data Expr = IntegerConst Integer
           | FloatConst Double
           | Var V
           | App Expr Expr
+          | Abs V T Expr
           | Let V Expr Expr
           | Fresh V T Expr
           | Select [Selector] Expr
@@ -33,11 +34,11 @@ data T = TInteger
        | TRel T
        | TFun T T deriving (Eq, Show)
 
-data TField = TField Field T
+data TField = TField Field T deriving (Eq, Show)
 
 lexer = makeTokenParser emptyDef {
     identLetter = alphaNum <|> char '_',
-    reservedNames = ["select", "SELECT", "where", "WHERE", "in", "IN", "let", "LET", "fresh", "FRESH", "set", "SET", "integer", "INTEGER", "string", "STRING", "float", "FLOAT", "prop", "PROP", "set", "SET", "rel", "REL"]
+    reservedNames = ["select", "SELECT", "where", "WHERE", "in", "IN", "let", "LET", "fresh", "FRESH", "set", "SET", "integer", "INTEGER", "string", "STRING", "float", "FLOAT", "prop", "PROP", "set", "SET", "rel", "REL", "assume", "ASSUME"],
     reservedOpNames = ["=", ":", ".", "->"]
 }
 
@@ -86,29 +87,29 @@ rrel = reserved lexer "rel" <|> reserved lexer "REL"
 ras :: Parser ()
 ras = reserved lexer "as" <|> reserved lexer "AS"
 
+rlambda :: Parser ()
+rlambda = reserved lexer "assume" <|> reserved lexer "ASSUME"
+
 selector :: Parser Selector
 selector = Selector <$> expr <*> (ras *> field)
 
 factor :: Parser Expr
-factor = (parens lexer expr)
+factor = parens lexer expr
    <|> (IntegerConst <$> integer lexer)
    <|> (StringConst <$> stringLiteral lexer)
    <|> (FloatConst <$> float lexer)
    <|> (Var <$> var)
+   <|> (Abs <$> (rlambda *> var <* reservedOp lexer ":") <*> (typep <* rin) <*> expr)
    <|> (Let <$> (rlet *> var <* reservedOp lexer "=") <*> (expr <* rin) <*> expr)
-   <|> (Fresh <$> (rfresh *> var <* colon lexer) <*> (typep <* rin) <*> expr) 
+   <|> (Fresh <$> (rfresh *> var <* reservedOp lexer ":") <*> (typep <* rin) <*> expr) 
    <|> (Select <$> (rselect *> commaSep lexer selector <* rwhere) <*> expr)
 
 expr :: Parser Expr
 expr = do
     e <- factor 
-    ds <- many (do 
-        reservedOp lexer "."
-        f <- field
-        return (flip Dot f) <|> (do
-            f <- factor
-            return (flip App f)))
-    return (foldl' (&) e ds)
+    ds <- many (reservedOp lexer "." *> (flip Dot <$> field))
+    as <- many (flip App <$> factor)
+    return (foldl' (&) (foldl' (&) e ds) as)
 
 tfactor :: Parser T
 tfactor = (parens lexer typep)
@@ -127,3 +128,6 @@ typep :: Parser T
 typep = do
     t <- tfactor
     (TFun t <$> (reservedOp lexer "->" *> typep)) <|> return t
+
+parseWithEof :: Parser a -> String -> Either ParseError a
+parseWithEof p = parse (p <* eof) ""    
