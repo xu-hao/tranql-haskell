@@ -1,4 +1,4 @@
-# Tranql
+# A Haskell Implementation of TranQL
 
 ## Syntax 
 ```
