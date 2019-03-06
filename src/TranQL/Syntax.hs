@@ -40,7 +40,7 @@ data TField = TField Field T
 lexer = makeTokenParser emptyDef {
     identLetter = alphaNum <|> char '_',
     reservedNames = ["select", "SELECT", "where", "WHERE", "in", "IN", "let", "LET", "fresh", "FRESH", "set", "SET", "integer", "INTEGER", "string", "STRING", "float", "FLOAT", "prop", "PROP", "set", "SET", "rel", "REL"]
-    reservedOpNames = ["=", ":", "."]
+    reservedOpNames = ["=", ":", ".", "->"]
 }
 
 var :: Parser V
