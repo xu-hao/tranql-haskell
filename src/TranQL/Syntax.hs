@@ -8,9 +8,9 @@ import Text.Parsec.Language
 import Data.Function ((&))
 import Data.List (foldl')
 
-newtype V = V String
+newtype V = V String deriving (Eq, Show)
 
-newtype Field = Field String
+newtype Field = Field String deriving (Eq, Show)
 
 data Expr = IntegerConst Integer
           | StringConst String
@@ -20,9 +20,9 @@ data Expr = IntegerConst Integer
           | Let V Expr Expr
           | Fresh V T Expr
           | Select [Selector] Expr
-          | Dot Expr Field
+          | Dot Expr Field deriving (Eq, Show)
 
-data Selector = Selector Expr Field
+data Selector = Selector Expr Field deriving (Eq, Show)
 
 data T = TInteger
        | TString
@@ -31,11 +31,9 @@ data T = TInteger
        | TRecord [TField]
        | TSet T
        | TRel T
-       | TFun T T
+       | TFun T T deriving (Eq, Show)
 
 data TField = TField Field T
-
--- type TEnv = [ (V, T) ]
 
 lexer = makeTokenParser emptyDef {
     identLetter = alphaNum <|> char '_',
