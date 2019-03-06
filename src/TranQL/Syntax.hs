@@ -128,4 +128,4 @@ tfield = TField <$> field <*> (reservedOp lexer ":" *> typep)
 typep :: Parser T
 typep = do
     t <- tfactor
-    (TFun t <$> typep) <|> return t
+    (TFun t <$> (reservedOp lexer "->" *> typep)) <|> return t
