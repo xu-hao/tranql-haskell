@@ -1,4 +1,4 @@
-# tranql
+# Tranql
 
 ## Syntax 
 ```
