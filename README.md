@@ -1,4 +1,4 @@
-# tranql-haskell
+# tranql
 
 ## Syntax 
 ```
