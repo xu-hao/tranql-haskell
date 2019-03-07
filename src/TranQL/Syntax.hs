@@ -22,8 +22,9 @@ data Expr = IntegerConst Integer
           | Abs V T Expr
           | Let V Expr Expr
           | Fresh V T Expr
-          | Select [Selector] Expr
           | Return Expr
+          | Select [Selector] Expr
+          | From V Expr Expr
           | Dot Expr Field deriving (Eq, Show)
 
 data Selector = Selector Expr Field deriving (Eq, Show)
@@ -40,7 +41,7 @@ data T = TInteger
 data TField = TField Field T deriving (Eq, Show)
 
 keywords :: [String]
-keywords = ["select", "where", "in", "let", "fresh", "set", "integer", "string", "float", "prop", "set", "rel", "assume", "as", "return"]
+keywords = ["select", "where", "in", "let", "fresh", "set", "integer", "string", "float", "prop", "set", "rel", "assume", "as", "return", "from"]
 
 lexer = T.makeTokenParser emptyDef {
     T.identLetter = alphaNum <|> char '_',
@@ -129,6 +130,9 @@ rreturn = reserved "return"
 rlambda :: Parser ()
 rlambda = reserved "assume"
 
+rfrom :: Parser ()
+rfrom = reserved "from"
+
 selector :: Parser Selector
 selector = Selector <$> expr <*> (ras *> field)
 
@@ -146,19 +150,29 @@ factor = parens expr
     return (foldr (uncurry Abs) e vts))
    <|> (do
     rlet
-    ves <- commaSep ((,) <$> (var <* reservedOp "=") <*> expr)
+    ves <- commaSep (do
+        v <- var
+        (do
+            reservedOp "="
+            e <- expr
+            return (Let v e)) <|>
+            (do
+                rfrom
+                e <- expr
+                return (From v e)))
     rin
     e <- expr
-    return (foldr (uncurry Let) e ves))
+    return (foldr ($) e ves))
    <|> (do
     rfresh
     vts <- commaSep ((,) <$> (var <* reservedOp ":") <*> typep)
     rin
     e <- expr
     return (foldr (uncurry Fresh) e vts)) 
-   <|> (Select <$> (rselect *> commaSep selector <* rwhere) <*> expr)
-   <|> (Return <$> (rreturn *> expr))
+    <|> (Return <$> (rreturn *> expr))
+    <|> (Select <$> (rselect *> commaSep selector <* rwhere) <*> expr)
 
+     
 expr :: Parser Expr
 expr = do
     e <- factor 

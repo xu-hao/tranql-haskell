@@ -35,6 +35,12 @@ typeCheck tenv e =
         Let v e f -> do
             t <- typeCheck tenv e
             typeCheck ((v, t) : tenv) f
+        From v e f -> do
+            s <- typeCheck tenv e
+            case s of
+                TSet s0 ->
+                    typeCheck ((v, s0) : tenv) f
+                _ -> fail ("type mismatch: the type of expression " ++ show e ++ " " ++ show s ++ " is not a set type")
         Fresh v t f ->
             typeCheck ((v, TRel t) : tenv) f
         Select selectors e -> do
@@ -88,6 +94,13 @@ infer tenv vts expectedType e = do
             (e', vts', t) <- infer tenv vts Nothing e
             (f', vts'', s) <- infer ((v, t) : tenv) vts' expectedType f
             return (Let v e' f', vts'', s)
+        From v e f -> do
+            (e', vts', s) <- infer tenv vts Nothing e
+            case s of
+                TSet s0 -> do
+                    (f', vts'', t) <- infer ((v, s0) : tenv) vts' expectedType f
+                    return (From v e' f', vts'', t)
+                _ -> fail ("type mismatch: the type of expression " ++ show e ++ " " ++ show s ++ " is not a set type")
         Fresh v t f ->
             infer ((v, TRel t) : tenv) vts expectedType f -- same as Abs v s e
         Select selectors e -> do
