@@ -21,6 +21,8 @@ typeCheck tenv e =
         Var v -> case lookupTEnv v tenv of
                         Nothing -> fail ("unbound variable " ++ show v)
                         Just t -> return t
+        Abs v s e -> do
+            TFun s <$> typeCheck ((v, s) : tenv) e
         App e f -> do
             s <- typeCheck tenv e
             case s of
@@ -30,19 +32,13 @@ typeCheck tenv e =
                         then return r
                         else fail ("type mismatch: expression " ++ show f ++ ", expected " ++ show q ++ ", encounterd " ++ show t)
                 _ -> fail ("type mismatch: the type of expression " ++ show f ++ " " ++ show s ++ " is not a function type")
-        Abs v s e -> do
-            TFun s <$> typeCheck ((v, s) : tenv) e
         Let v e f -> do
             t <- typeCheck tenv e
             typeCheck ((v, t) : tenv) f
-        From v e f -> do
-            s <- typeCheck tenv e
-            case s of
-                TSet s0 ->
-                    typeCheck ((v, s0) : tenv) f
-                _ -> fail ("type mismatch: the type of expression " ++ show e ++ " " ++ show s ++ " is not a set type")
         Fresh v t f ->
             typeCheck ((v, TRel t) : tenv) f
+        Return e ->
+            TRel <$> typeCheck tenv e
         Select selectors e -> do
             let fields = map (\(Selector _ f) -> f) selectors
                 exprs = map (\(Selector e _) -> e) selectors
@@ -51,6 +47,12 @@ typeCheck tenv e =
             if s == TProp
                 then return (TRecord (zipWith TField fields ts))
                 else fail ("type mismatch: the type of expression " ++ show e ++ " " ++ show s ++ " is not prop")
+        From v e f -> do
+            s <- typeCheck tenv e
+            case s of
+                TSet s0 ->
+                    typeCheck ((v, s0) : tenv) f
+                _ -> fail ("type mismatch: the type of expression " ++ show e ++ " " ++ show s ++ " is not a set type")
         Dot e f -> do
             s <- typeCheck tenv e
             case s of
@@ -59,8 +61,6 @@ typeCheck tenv e =
                         Nothing -> fail ("type mismatch: the type of expression " ++ show e ++ " " ++ show s ++ " is a record type, but does not have field " ++ show f)
                         Just (TField _ t) -> return t
                 _ -> fail ("type mismatch: the type of expression " ++ show e ++ " " ++ show s ++ " is not a record type")
-        Return e ->
-            TRel <$> typeCheck tenv e
 
 
 consistent :: [(V, T)] -> Bool
@@ -80,6 +80,9 @@ infer tenv vts expectedType e = do
                                 Just t2 -> return (e, (v, t2) : vts, t2)
                             Just t -> return (e, vts, t)
                         Just t -> return (e, vts, t)
+        Abs v s e -> do
+            (e', vts', t) <- infer ((v, s) : tenv) vts Nothing e -- must ensure v shadows vts in Var v
+            return (Abs v s e', vts', TFun s t)
         App e f -> do
             (e', vts', s) <- infer tenv vts Nothing e
             case s of
@@ -87,22 +90,15 @@ infer tenv vts expectedType e = do
                     (f', vts'', _) <- infer tenv vts' (Just q) f
                     return (App e' f', vts'', r)
                 _ -> fail ("type mismatch: the type of expression " ++ show f ++ " " ++ show s ++ " is not a function type")
-        Abs v s e -> do
-            (e', vts', t) <- infer ((v, s) : tenv) vts Nothing e -- must ensure v shadows vts in Var v
-            return (Abs v s e', vts', TFun s t)
         Let v e f -> do
             (e', vts', t) <- infer tenv vts Nothing e
             (f', vts'', s) <- infer ((v, t) : tenv) vts' expectedType f
             return (Let v e' f', vts'', s)
-        From v e f -> do
-            (e', vts', s) <- infer tenv vts Nothing e
-            case s of
-                TSet s0 -> do
-                    (f', vts'', t) <- infer ((v, s0) : tenv) vts' expectedType f
-                    return (From v e' f', vts'', t)
-                _ -> fail ("type mismatch: the type of expression " ++ show e ++ " " ++ show s ++ " is not a set type")
         Fresh v t f ->
             infer ((v, TRel t) : tenv) vts expectedType f -- same as Abs v s e
+        Return e -> do
+            (e', vts', t) <- infer tenv vts Nothing e
+            return (Return e', vts', t)
         Select selectors e -> do
             (e', vtss, s) <- infer tenv [] (Just TProp) e -- no free var from outer scope
             let fields = map (\(Selector _ f) -> f) selectors
@@ -114,6 +110,13 @@ infer tenv vts expectedType e = do
                     else return (exprst ++ [expr'], tst ++ [t])
                 ) ([], []) exprs
             return (foldl' (\et (v, t) -> Fresh v t et) (Select (zipWith Selector exprs' fields) e') vtss, vts, TRecord (zipWith TField fields ts))
+        From v e f -> do
+            (e', vts', s) <- infer tenv vts Nothing e
+            case s of
+                TSet s0 -> do
+                    (f', vts'', t) <- infer ((v, s0) : tenv) vts' expectedType f
+                    return (From v e' f', vts'', t)
+                _ -> fail ("type mismatch: the type of expression " ++ show e ++ " " ++ show s ++ " is not a set type")
         Dot e f -> do
             (e', vts', s) <- infer tenv vts Nothing e
             case s of
@@ -122,9 +125,6 @@ infer tenv vts expectedType e = do
                         Nothing -> fail ("type mismatch: the type of expression " ++ show e ++ " " ++ show s ++ " is a record type, but does not have field " ++ show f)
                         Just (TField _ t) -> return (Dot e' f, vts', s)
                 _ -> fail ("type mismatch: the type of expression " ++ show e ++ " " ++ show s ++ " is not a record type")
-        Return e -> do
-            (e', vts', t) <- infer tenv vts Nothing e
-            return (Return e', vts', t)
     case expectedType of
         Just t2 -> if t' == t2
             then return r'
