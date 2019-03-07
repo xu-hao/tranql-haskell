@@ -138,9 +138,24 @@ factor = parens expr
    <|> (StringConst <$> stringLiteral )
    <|> (FloatConst <$> float )
    <|> (Var <$> var)
-   <|> (Abs <$> (rlambda *> var <* reservedOp ":") <*> (typep <* rin) <*> expr)
-   <|> (Let <$> (rlet *> var <* reservedOp "=") <*> (expr <* rin) <*> expr)
-   <|> (Fresh <$> (rfresh *> var <* reservedOp ":") <*> (typep <* rin) <*> expr) 
+   <|> (do
+    rlambda
+    vts <- commaSep ((,) <$> (var <* reservedOp ":") <*> typep)
+    rin
+    e <- expr
+    return (foldr (uncurry Abs) e vts))
+   <|> (do
+    rlet
+    ves <- commaSep ((,) <$> (var <* reservedOp "=") <*> expr)
+    rin
+    e <- expr
+    return (foldr (uncurry Let) e ves))
+   <|> (do
+    rfresh
+    vts <- commaSep ((,) <$> (var <* reservedOp ":") <*> typep)
+    rin
+    e <- expr
+    return (foldr (uncurry Fresh) e vts)) 
    <|> (Select <$> (rselect *> commaSep selector <* rwhere) <*> expr)
    <|> (Return <$> (rreturn *> expr))
 

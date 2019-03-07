@@ -22,4 +22,14 @@ main = hspec $ do
             parseWithEof expr "select 1 c as b where true" `shouldBe` Right (Select [Selector (App (IntegerConst 1) (Var (V "c"))) (Field "b")] (Var (V "true")))
         it "assume x : prop in select 1 c as b where and x true" $ do
             parseWithEof expr "assume x : prop in select 1 c as b where and x true" `shouldBe` Right (Abs (V "x") TProp (Select [Selector (App (IntegerConst 1) (Var (V "c"))) (Field "b")] (App (App (Var (V "and")) (Var (V "x"))) (Var (V "true")))))
-    
+        it "assume x : prop, y : prop in select 1 c as b where and x true" $ do
+            parseWithEof expr "assume x : prop, y : prop in select 1 c as b where and x true" `shouldBe` Right (Abs (V "x") TProp (Abs (V "y") TProp (Select [Selector (App (IntegerConst 1) (Var (V "c"))) (Field "b")] (App (App (Var (V "and")) (Var (V "x"))) (Var (V "true"))))))
+        it "let x = 1 in x" $ do
+            parseWithEof expr "let x = 1 in x" `shouldBe` Right (Let (V "x") (IntegerConst 1) (Var (V "x")))
+        it "let x = 1, y = x in x" $ do
+            parseWithEof expr "let x = 1, y = x in x" `shouldBe` Right (Let (V "x") (IntegerConst 1) (Let (V "y") (Var (V "x")) (Var (V "x"))))
+        it "fresh x : prop in x" $ do
+            parseWithEof expr "fresh x : prop in x" `shouldBe` Right (Fresh (V "x") TProp (Var (V "x")))
+        it "fresh x : prop, y : prop in x" $ do
+            parseWithEof expr "fresh x : prop, y : prop in x" `shouldBe` Right (Fresh (V "x") TProp (Fresh (V "y") TProp (Var (V "x"))))
+                    
