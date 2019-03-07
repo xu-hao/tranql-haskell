@@ -3,10 +3,12 @@ module TranQL.Syntax where
 import Text.Parsec
 import Text.Parsec.String
 import Text.Parsec.Char
-import Text.Parsec.Token
+import qualified Text.Parsec.Token as T
 import Text.Parsec.Language
 import Data.Function ((&))
 import Data.List (foldl')
+import Data.Char (toUpper)
+import Data.Functor (($>))
 
 newtype V = V String deriving (Eq, Show)
 
@@ -21,6 +23,7 @@ data Expr = IntegerConst Integer
           | Let V Expr Expr
           | Fresh V T Expr
           | Select [Selector] Expr
+          | Return Expr
           | Dot Expr Field deriving (Eq, Show)
 
 data Selector = Selector Expr Field deriving (Eq, Show)
@@ -36,98 +39,135 @@ data T = TInteger
 
 data TField = TField Field T deriving (Eq, Show)
 
-lexer = makeTokenParser emptyDef {
-    identLetter = alphaNum <|> char '_',
-    reservedNames = ["select", "SELECT", "where", "WHERE", "in", "IN", "let", "LET", "fresh", "FRESH", "set", "SET", "integer", "INTEGER", "string", "STRING", "float", "FLOAT", "prop", "PROP", "set", "SET", "rel", "REL", "assume", "ASSUME"],
-    reservedOpNames = ["=", ":", ".", "->"]
+keywords :: [String]
+keywords = ["select", "where", "in", "let", "fresh", "set", "integer", "string", "float", "prop", "set", "rel", "assume", "as", "return"]
+
+lexer = T.makeTokenParser emptyDef {
+    T.identLetter = alphaNum <|> char '_',
+    T.reservedNames = keywords ++ map (map toUpper) keywords,
+    T.reservedOpNames = ["=", ":", ".", "->"]
 }
 
+reserved :: String -> Parser ()
+reserved s = T.reserved lexer s <|> T.reserved lexer (map toUpper s)
+
+reservedOp :: String -> Parser ()
+reservedOp s = T.reservedOp lexer s
+
+commaSep :: Parser a -> Parser [a]
+commaSep = T.commaSep lexer
+
+identifier :: Parser String
+identifier = T.identifier lexer
+
+braces :: Parser a -> Parser a
+braces = T.braces lexer
+
+parens :: Parser a -> Parser a
+parens = T.parens lexer
+
+integer :: Parser Integer
+integer = T.integer lexer
+
+stringLiteral :: Parser String
+stringLiteral = T.stringLiteral lexer
+
+float :: Parser Double
+float = T.float lexer
+
+lexeme :: Parser a -> Parser a
+lexeme = T.lexeme lexer
+
 var :: Parser V
-var = V <$> identifier lexer
+var = V <$> identifier
 
 field :: Parser Field
-field = Field <$> identifier lexer
+field = Field <$> identifier
 
 string :: Parser String
-string = lexeme lexer (char '\'' *> manyTill anyChar (char '\''))
+string = lexeme (char '\'' *> manyTill anyChar (char '\''))
 
 rlet :: Parser ()
-rlet = reserved lexer "let" <|> reserved lexer "LET"
+rlet = reserved "let"
 
 rselect :: Parser ()
-rselect = reserved lexer "select" <|> reserved lexer "SELECT"
+rselect = reserved "select"
 
 rwhere :: Parser ()
-rwhere = reserved lexer "where" <|> reserved lexer "WHERE"
+rwhere = reserved "where"
 
 rin :: Parser ()
-rin = reserved lexer "in" <|> reserved lexer "IN"
+rin = reserved "in"
 
 rfresh :: Parser ()
-rfresh = reserved lexer "fresh" <|> reserved lexer "FRESH"
+rfresh = reserved "fresh"
 
 rfloat :: Parser ()
-rfloat = reserved lexer "float" <|> reserved lexer "FLOAT"
+rfloat = reserved "float"
 
 rinteger :: Parser ()
-rinteger = reserved lexer "integer" <|> reserved lexer "INTEGER"
+rinteger = reserved "integer"
 
 rstring :: Parser ()
-rstring = reserved lexer "string" <|> reserved lexer "STRING"
+rstring = reserved "string"
 
 rprop :: Parser ()
-rprop = reserved lexer "prop" <|> reserved lexer "PROP"
+rprop = reserved "prop"
 
 rset :: Parser ()
-rset = reserved lexer "set" <|> reserved lexer "SET"
+rset = reserved "set"
 
 rrel :: Parser ()
-rrel = reserved lexer "rel" <|> reserved lexer "REL"
+rrel = reserved "rel"
 
 ras :: Parser ()
-ras = reserved lexer "as" <|> reserved lexer "AS"
+ras = reserved "as"
+
+rreturn :: Parser ()
+rreturn = reserved "return"
 
 rlambda :: Parser ()
-rlambda = reserved lexer "assume" <|> reserved lexer "ASSUME"
+rlambda = reserved "assume"
 
 selector :: Parser Selector
 selector = Selector <$> expr <*> (ras *> field)
 
 factor :: Parser Expr
-factor = parens lexer expr
-   <|> (IntegerConst <$> integer lexer)
-   <|> (StringConst <$> stringLiteral lexer)
-   <|> (FloatConst <$> float lexer)
+factor = parens expr
+   <|> (IntegerConst <$> integer )
+   <|> (StringConst <$> stringLiteral )
+   <|> (FloatConst <$> float )
    <|> (Var <$> var)
-   <|> (Abs <$> (rlambda *> var <* reservedOp lexer ":") <*> (typep <* rin) <*> expr)
-   <|> (Let <$> (rlet *> var <* reservedOp lexer "=") <*> (expr <* rin) <*> expr)
-   <|> (Fresh <$> (rfresh *> var <* reservedOp lexer ":") <*> (typep <* rin) <*> expr) 
-   <|> (Select <$> (rselect *> commaSep lexer selector <* rwhere) <*> expr)
+   <|> (Abs <$> (rlambda *> var <* reservedOp ":") <*> (typep <* rin) <*> expr)
+   <|> (Let <$> (rlet *> var <* reservedOp "=") <*> (expr <* rin) <*> expr)
+   <|> (Fresh <$> (rfresh *> var <* reservedOp ":") <*> (typep <* rin) <*> expr) 
+   <|> (Select <$> (rselect *> commaSep selector <* rwhere) <*> expr)
+   <|> (Return <$> (rreturn *> expr))
 
 expr :: Parser Expr
 expr = do
     e <- factor 
-    ds <- many (reservedOp lexer "." *> (flip Dot <$> field))
+    ds <- many (reservedOp "." *> (flip Dot <$> field))
     as <- many (flip App <$> factor)
     return (foldl' (&) (foldl' (&) e ds) as)
 
 tfactor :: Parser T
-tfactor = (parens lexer typep)
-      <|> (rinteger *> pure TInteger)
-      <|> (rstring *> pure TString)
-      <|> (rfloat *> pure TFloat)
-      <|> (rprop *> pure TProp)
-      <|> (TRecord <$> braces lexer (commaSep lexer tfield))
+tfactor = parens typep
+      <|> (rinteger $> TInteger)
+      <|> (rstring $> TString)
+      <|> (rfloat $> TFloat)
+      <|> (rprop $> TProp)
+      <|> (TRecord <$> braces  (commaSep  tfield))
       <|> (rset *> (TSet <$> typep))
       <|> (rrel *> (TRel <$> typep))
 
 tfield :: Parser TField
-tfield = TField <$> field <*> (reservedOp lexer ":" *> typep)
+tfield = TField <$> field <*> (reservedOp ":" *> typep)
 
 typep :: Parser T
 typep = do
     t <- tfactor
-    (TFun t <$> (reservedOp lexer "->" *> typep)) <|> return t
+    (TFun t <$> (reservedOp "->" *> typep)) <|> return t
 
 parseWithEof :: Parser a -> String -> Either ParseError a
 parseWithEof p = parse (p <* eof) ""    

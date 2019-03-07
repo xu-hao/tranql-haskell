@@ -25,6 +25,8 @@ dependencies:
 - transformers
 - containers
 - optparse-applicative
+- free
+- deriving-compat
 
 library:
   source-dirs: src
@@ -49,4 +51,5 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
+    - hspec
     - tranql-haskell
