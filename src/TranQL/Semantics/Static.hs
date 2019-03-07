@@ -92,10 +92,10 @@ infer tenv vts expectedType e = do
                 _ -> fail ("type mismatch: the type of expression " ++ show f ++ " " ++ show s ++ " is not a function type")
         Let v e f -> do
             (e', vts', t) <- infer tenv vts Nothing e
-            (f', vts'', s) <- infer ((v, t) : tenv) vts' expectedType f
+            (f', vts'', s) <- infer ((v, t) : tenv) vts' Nothing f
             return (Let v e' f', vts'', s)
         Fresh v t f ->
-            infer ((v, TRel t) : tenv) vts expectedType f -- same as Abs v s e
+            infer ((v, TRel t) : tenv) vts Nothing f -- same as Abs v s e
         Return e -> do
             (e', vts', t) <- infer tenv vts Nothing e
             return (Return e', vts', t)
@@ -114,7 +114,7 @@ infer tenv vts expectedType e = do
             (e', vts', s) <- infer tenv vts Nothing e
             case s of
                 TSet s0 -> do
-                    (f', vts'', t) <- infer ((v, s0) : tenv) vts' expectedType f
+                    (f', vts'', t) <- infer ((v, s0) : tenv) vts' Nothing f
                     return (From v e' f', vts'', t)
                 _ -> fail ("type mismatch: the type of expression " ++ show e ++ " " ++ show s ++ " is not a set type")
         Dot e f -> do
