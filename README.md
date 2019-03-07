@@ -10,7 +10,7 @@
        |   FRESH <Var> : <Type> IN <Expr>
        |   RETURN <Expr>
        |   SELECT <Selector>, ..., <Selector> WHERE <Expr>
-       |   FROM <Expr> <Var> IN <Expr>
+       |   LET <Var> FROM <Expr> IN <Expr>
        |   <Expr> . <Field>
        	
 <Selector> ::= <Expr> AS <Field>
@@ -76,7 +76,7 @@ G |- SELECT e_1 AS f_1, ..., e_n AS f_n WHERE e : Set { f_1 : t_1, ..., f_n : t_
 
 G |- e1 : Set s    G, v : s |- e2 : t
 -------------------------------------
-G |- FROM e1 v IN e2 : t
+G |- LET v FROM e1 IN e2 : t
 
 G |- e : { f_1 : t_1, ..., f_n : t_n }    1 <= i <= n
 -----------------------------------------------------
