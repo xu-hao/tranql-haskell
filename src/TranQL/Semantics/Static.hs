@@ -122,9 +122,7 @@ infer tenv vts expectedType e = do
                         Just (TField _ t) -> return (Dot e' f, vts', s)
                 _ -> fail ("type mismatch: the type of expression " ++ show e ++ " " ++ show s ++ " is not a record type")
     case expectedType of
-        Just t2 -> if t' == t2
-            then return r'
-            else case t2 of
-                TRel t3 | t' == t3 -> return (e', vts', t2)
-                _ -> fail ("type mismatch: expression " ++ show e ++ ", expected " ++ show t2 ++ ", encounterd " ++ show t')
+        Just t2 | t' == t2 -> return (e', vts', expectedType)
+        Just (TRel t2) | t' == t2 -> return (e', vts', expectedType)
+        Just _ -> fail ("type mismatch: expression " ++ show e ++ ", expected " ++ show t2 ++ ", encounterd " ++ show t')
         _ -> return r'
