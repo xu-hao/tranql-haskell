@@ -63,10 +63,6 @@ typeCheck tenv e =
                 _ -> fail ("type mismatch: the type of expression " ++ show e ++ " " ++ show s ++ " is not a record type")
 
 
-consistent :: [(V, T)] -> Bool
-consistent vts = 
-    let vs = map fst (nub vts) in length vs == length (nub vs)
-
 infer :: TEnv -> TEnv -> Maybe T -> Expr -> Except String (Expr, [(V, T)], T)
 infer tenv vts expectedType e = do
     r'@(e', vts', t') <- case e of
