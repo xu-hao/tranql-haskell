@@ -123,6 +123,6 @@ infer tenv vts expectedType e = do
                 _ -> fail ("type mismatch: the type of expression " ++ show e ++ " " ++ show s ++ " is not a record type")
     case expectedType of
         Just t2 | t' == t2 -> return (e', vts', t2)
-                | Rel t' == t2 -> return (Return e', vts', t2)
+                | TRel t' == t2 -> return (Return e', vts', t2)
                 | otherwise -> fail ("type mismatch: expression " ++ show e ++ ", expected " ++ show t2 ++ ", encounterd " ++ show t')
         _ -> return r'

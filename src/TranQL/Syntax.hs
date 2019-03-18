@@ -23,11 +23,12 @@ data Expr = IntegerConst Integer
           | Let V Expr Expr
           | Fresh V T Expr
           | Return Expr
-          | Select [Selector] Expr
-          | From V Expr Expr
+          | Select Expr Expr
+          | From Expr
+          | Record [Selector]
           | Dot Expr Field deriving (Eq, Show)
 
-data Selector = Selector Expr Field deriving (Eq, Show)
+data Selector = Selector Field Expr deriving (Eq, Show)
 
 data T = TInteger
        | TString
@@ -134,7 +135,10 @@ rfrom :: Parser ()
 rfrom = reserved "from"
 
 selector :: Parser Selector
-selector = Selector <$> expr <*> (ras *> field)
+selector = Selector <$> field <*> (reservedOp "=" *> expr)
+
+selector2 :: Parser Selector
+selector2 = flip Selector <$> expr <*> (reservedOp "AS" *> field)
 
 factor :: Parser Expr
 factor = parens expr
@@ -170,7 +174,22 @@ factor = parens expr
     e <- expr
     return (foldr (uncurry Fresh) e vts)) 
     <|> (Return <$> (rreturn *> expr))
-    <|> (Select <$> (rselect *> commaSep selector <* rwhere) <*> expr)
+    <|> try (Select <$> (rselect *> expr <* rwhere) <*> expr)
+    <|> (do
+        rselect
+        selectors <- commaSep selector2
+        froms <- (do
+            rfrom
+            commaSep (do
+                e <- factor
+                v <- var
+                return (From v e)
+            )) <|> return []
+        whereexpr <- (do
+            rwhere
+            expr
+            ) <|> Var (V "true")
+    <|> (Record <$> braces (commaSep selector))
 
      
 expr :: Parser Expr
