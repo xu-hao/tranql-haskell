@@ -55,7 +55,7 @@ instance Query ICEES where
 associationsToAllFeatures :: forall (f :: IFeature) (a :: Selector ICEES). IOp f -> IValue f -> Double -> ResultSet ICEES a -> IO [IFeature]
 associationsToAllFeatures = undefined
 
--- example query
+-- example queries
 qu1 = select @ICEES @Patient (ICond @AgeStudyStart Gt A0_2 `IAnd` ICond @Theophylline Eq True)
 
 qu2 = let x = True in 
