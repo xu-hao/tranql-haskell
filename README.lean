@@ -26,8 +26,11 @@ instance rational_has_one : has_one rational := {has_one.
 end rational
 
 namespace io
+
 constant io : Type → Type
+
 instance io_monad : monad io := sorry
+
 end io
 
 namespace TranQL

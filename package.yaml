@@ -27,6 +27,7 @@ dependencies:
 - optparse-applicative
 - free
 - deriving-compat
+- constraint
 
 library:
   source-dirs: src
