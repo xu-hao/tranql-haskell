@@ -13,9 +13,9 @@ import Data.Proxy
 -- example ICEES query subsystem
 data ISelector = Patient | Visit | AssociationToAllFeaturesPatient | AssociationToAllFeaturesVisit
 
-data PatientFeature = AgeStudyStart | AvgDailyPM25Exposure | Theophylline
+data PatientFeature = AgeStudyStart | AvgDailyPM25Exposure | Theophylline deriving (Generic)
 
-data VisitFeature = AgeVisit | Avg24hPM25Exposure | TheophyllineVisit
+data VisitFeature = AgeVisit | Avg24hPM25Exposure | TheophyllineVisit deriving (Generic)
     
 type family IFeature (s :: ISelector) where
     IFeature Patient = PatientFeature
@@ -47,23 +47,38 @@ data CohortProp (fs :: *) where
     IAnd :: CohortProp fs -> CohortProp fs -> CohortProp fs
     ICond :: forall (f :: fs). SingI f => Proxy f -> Op -> IValue fs f -> CohortProp fs
 
+data YearCohortProp (fs :: *) = YearCohortProp {
+    getYear :: Int,
+    getCohortProp :: CohortProp fs
+    }
+
 data ATAFProp (fs :: *) where
-    ATAFCond :: forall (f :: fs). SingI f => Proxy f -> Op -> IValue fs f 
+    ATAFCond :: forall (f :: fs). SingI f => Int -- ^ year
+                -> Proxy f -> Op -> IValue fs f 
                 -> String -- ^ cohort_id
                 -> Double -- ^ maximum_p_value
                 -> ATAFProp fs
     
+getCohortID :: forall (fs :: *). ATAFProp fs -> String
+getCohortID (ATAFCond _ _ _ _ cohortID _) = cohortID
+
+getMaximumPValue :: forall (fs :: *). ATAFProp fs -> Double
+getMaximumPValue (ATAFCond _ _ _ _ _ maximumPValue) = maximumPValue
+
+getATAFYear :: forall (fs :: *). ATAFProp fs -> Int
+getATAFYear (ATAFCond year _ _ _ _ _) = year
+
 type family IProp (s :: ISelector) where
-    IProp Patient = CohortProp PatientFeature
-    IProp Visit = CohortProp VisitFeature
+    IProp Patient = YearCohortProp PatientFeature
+    IProp Visit = YearCohortProp VisitFeature
     IProp AssociationToAllFeaturesPatient = ATAFProp PatientFeature
     IProp AssociationToAllFeaturesVisit = ATAFProp VisitFeature
 
 data CohortResultSet = CohortResultSet String deriving (Generic)
 
-data ATAFResultSet (s :: ISelector) = ATAFResultSet [IFeature s]
+data ATAFResultSet (s :: ISelector) = ATAFResultSet [IFeature s] deriving (Generic)
 
-type family IResultSet (s :: Selector ICEES) where
+type family IResultSet (s :: ISelector) where -- for some weird reason, this doesn't work with ISelector with UndecidableInstances
     IResultSet Patient = CohortResultSet
     IResultSet Visit = CohortResultSet
     IResultSet AssociationToAllFeaturesPatient = ATAFResultSet AssociationToAllFeaturesPatient
@@ -75,7 +90,7 @@ instance PreQuery ICEES where
     type Selector ICEES = ISelector
 
 instance Query ICEES where
-    type Prop ICEES s = IProp s
+    type Prop ICEES s = IProp s -- this will not type check
     type ResultSet ICEES s = IResultSet s
     -- exec = iexec
     
@@ -132,7 +147,11 @@ valueToJSON val =
             SAvg24hPM25Exposure -> toJSON val
             STheophyllineVisit -> toJSON val
                 
-
+yearCohortPropToJSON :: forall (s :: ISelector). (SingI s, SingKind (IFeature s), ToString (Demote (IFeature s))) => YearCohortProp (IFeature s) -> Map String Value
+yearCohortPropToJSON p = 
+    case p of
+        YearCohortProp _ cohortProp -> cohortPropToJSON @s cohortProp 
+            
 cohortPropToJSON :: forall (s :: ISelector). (SingI s, SingKind (IFeature s), ToString (Demote (IFeature s))) => CohortProp (IFeature s) -> Map String Value
 cohortPropToJSON p = 
     case p of
@@ -145,38 +164,55 @@ cohortPropToJSON p =
 atafPropToJSON :: forall (s :: ISelector). (SingI s, SingKind (IFeature s), ToString (Demote (IFeature s))) => ATAFProp (IFeature s) -> Map String Value
 atafPropToJSON p = 
     case p of
-        ATAFCond (Proxy :: Proxy f) op val _ maximumPValue ->
+        ATAFCond _ (Proxy :: Proxy f) op val _ maximumPValue ->
             fromList [("feature", toJSON (fromList [(toString (fromSing (sing :: Sing f)), toJSON (fromList [("operator" :: String, toJSON op),("value" :: String, valueToJSON @s @f val)]))])), ("maximum_p_value", toJSON maximumPValue)]                
 
 propToJSON :: forall (s :: ISelector). SingI s => IProp s -> Value
 propToJSON p =
     case sing :: (SingI s) => Sing s of
-        SPatient -> toJSON (cohortPropToJSON @s p)
-        SVisit -> toJSON (cohortPropToJSON @s p)
+        SPatient -> toJSON (yearCohortPropToJSON @s p)
+        SVisit -> toJSON (yearCohortPropToJSON @s p)
         SAssociationToAllFeaturesPatient -> toJSON (atafPropToJSON @s p)
         SAssociationToAllFeaturesVisit -> toJSON (atafPropToJSON @s p) where
             
 
-defineCohort :: forall (s :: ISelector). (SingI s, CohortProp (IFeature s) ~ IProp s, FromJSON (IResultSet s)) => CohortProp (IFeature s) -> IO (ResultSet ICEES s)
+defineCohort :: forall (s :: ISelector). (SingI s, YearCohortProp (IFeature s) ~ IProp s, FromJSON (IResultSet s)) => YearCohortProp (IFeature s) -> IO (ResultSet ICEES s)
 defineCohort p = do
-    let year = "2010"
-    let table = case sing :: SingI s => Sing s of
+    let year = getYear p
+        table = case sing :: SingI s => Sing s of
                     SPatient -> "patient"
                     SVisit -> "visit"
                     -- _ -> fail "defineCohort: unsupported selector"
     let reqbody = propToJSON @s p
-    req0 <- parseRequest ("POST https://icees.renci.org/2.0.0/" ++ table ++ "/" ++ year ++ "/cohort")
+    req0 <- parseRequest ("POST https://icees.renci.org/2.0.0/" ++ table ++ "/" ++ show year ++ "/cohort")
     let req = setRequestBodyJSON reqbody (setRequestHeaders [("Content-Type", "application/JSON"), ("Accept", "application/JSON")] req0)
     resp <- httpJSON req
     return (getResponseBody resp)
 
-    
--- instance FromJSON (ResultSet ICEES a)
+associationsToAllFeatures :: forall (s :: ISelector). (SingI s, ATAFProp (IFeature s) ~ IProp s, FromJSON (IResultSet s)) => ATAFProp (IFeature s) -> IO (ResultSet ICEES s)
+associationsToAllFeatures p = do
+    let year = getATAFYear p
+        cohortID = getCohortID p
+        maximumPValue = getMaximumPValue p
+        table = case sing :: SingI s => Sing s of
+                    SAssociationToAllFeaturesPatient -> "patient"
+                    SAssociationToAllFeaturesVisit -> "visit"
+                    -- _ -> fail "defineCohort: unsupported selector"
+    let reqbody = propToJSON @s p
+    req0 <- parseRequest ("POST https://icees.renci.org/2.0.0/" ++ table ++ "/" ++ show year ++ "/cohort/" ++ cohortID ++ "/associations_to_all_features")
+    let req = setRequestBodyJSON reqbody (setRequestHeaders [("Content-Type", "application/JSON"), ("Accept", "application/JSON")] req0)
+    resp <- httpJSON req
+    return (getResponseBody resp)
+        
+instance FromJSON CohortResultSet
+instance FromJSON PatientFeature
+instance FromJSON VisitFeature
+instance FromJSON (IFeature s) => FromJSON (ATAFResultSet s)
 
 
 
 -- -- example queries
-qu1 = select @ICEES @Patient (ICond (Proxy @AgeStudyStart) Gt A0_2 `IAnd` ICond (Proxy @Theophylline) Eq 1)
+qu1 = select @ICEES @Patient (YearCohortProp 2010 (ICond (Proxy @AgeStudyStart) Gt A0_2 `IAnd` ICond (Proxy @Theophylline) Eq 1))
 
 -- qu2 = let x = True in 
 --         select @ICEES @Patient (ICond @AgeStudyStart Gt A0_2 `IAnd` ICond @Theophylline Eq x)
