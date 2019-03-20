@@ -12,7 +12,7 @@ data Config = Config {
     typecheck :: Bool
 }
 
-config :: Parser Config
+config :: TranQLParser Config
 config = Config
     <$> argument str (metavar "QUERY")
     <*> switch (long "typecheck")

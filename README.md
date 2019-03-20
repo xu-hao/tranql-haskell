@@ -9,7 +9,7 @@
        |   LET <Var> = <Expr> IN <Expr>
        |   FRESH <Var> : <Type> IN <Expr>
        |   RETURN <Expr>
-       |   SELECT <Expr> WHERE <Expr>
+       |   SELECT <Expr> FROM <Expr> WHERE <Expr>
        |   LET <Var> FROM <Expr> IN <Expr>
        |   { <Selector>, ..., <Selector> }
        |   <Expr> . <Field>

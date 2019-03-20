@@ -25,9 +25,10 @@ dependencies:
 - transformers
 - containers
 - optparse-applicative
-- free
-- deriving-compat
 - constraint
+- http-conduit
+- aeson
+- singletons
 
 library:
   source-dirs: src

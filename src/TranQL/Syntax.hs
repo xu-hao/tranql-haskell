@@ -9,138 +9,118 @@ import Data.Function ((&))
 import Data.List (foldl')
 import Data.Char (toUpper)
 import Data.Functor (($>))
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as M
+import Control.Monad.Trans.Reader
+import Control.Monad.Trans.Class (lift)
+import Data.Functor.Identity
 
 newtype V = V String deriving (Eq, Show)
-
-newtype Field = Field String deriving (Eq, Show)
 
 data Expr = IntegerConst Integer
           | StringConst String
           | FloatConst Double
+          | Const String
           | Var V
           | App Expr Expr
-          | Abs V T Expr
-          | Let V Expr Expr
-          | Fresh V T Expr
+          | Abs V Expr
           | Return Expr
-          | Select Expr Expr
-          | From Expr
-          | Record [Selector]
-          | Dot Expr Field deriving (Eq, Show)
+          | Bind Expr Expr
+          | Select String Expr Expr deriving (Eq, Show)
 
-data Selector = Selector Field Expr deriving (Eq, Show)
-
-data T = TInteger
-       | TString
-       | TFloat
-       | TProp
-       | TRecord [TField]
-       | TSet T
-       | TRel T
-       | TFun T T deriving (Eq, Show)
-
-data TField = TField Field T deriving (Eq, Show)
-
-keywords :: [String]
-keywords = ["select", "where", "in", "let", "fresh", "set", "integer", "string", "float", "prop", "set", "rel", "assume", "as", "return", "from"]
-
-lexer = T.makeTokenParser emptyDef {
-    T.identLetter = alphaNum <|> char '_',
-    T.reservedNames = keywords ++ map (map toUpper) keywords,
-    T.reservedOpNames = ["=", ":", ".", "->"]
+newtype QueryParser = QueryParser {
+    selectorParser :: TranQLParser (Expr, QueryPropParser)
 }
 
-reserved :: String -> Parser ()
+data QueryPropParser = QueryPropParser {
+    propParser :: TranQLParser Expr,
+    trueProp :: Maybe Expr
+}
+          
+type QueryParserMap = Map String QueryParser
+type TranQLParser = ParsecT String () (Reader QueryParserMap)
+
+
+
+keywords :: [String]
+keywords = ["select", "from", "where", "let", "in", "assume", "return"]
+
+langDef :: T.GenLanguageDef String () (Reader QueryParserMap)
+langDef = T.LanguageDef {
+    T.reservedNames = keywords ++ map (map toUpper) keywords,
+    T.reservedOpNames = ["=", "<-"],
+    T.commentStart   = "{-",
+    T.commentEnd     = "-}",
+    T.commentLine    = "--",
+    T.nestedComments = True,
+    T.identStart     = letter <|> char '_',
+    T.identLetter    = alphaNum <|> oneOf "_'",
+    T.opStart        = T.opLetter langDef,
+    T.opLetter       = oneOf ":!#$%&*+./<=>?@\\^|-~",
+    T.caseSensitive  = True
+    }
+
+lexer :: T.GenTokenParser String () (Reader QueryParserMap)
+lexer = T.makeTokenParser langDef
+
+reserved :: String -> TranQLParser ()
 reserved s = T.reserved lexer s <|> T.reserved lexer (map toUpper s)
 
-reservedOp :: String -> Parser ()
-reservedOp s = T.reservedOp lexer s
+reservedOp :: String -> TranQLParser ()
+reservedOp = T.reservedOp lexer
 
-commaSep :: Parser a -> Parser [a]
+commaSep :: TranQLParser a -> TranQLParser [a]
 commaSep = T.commaSep lexer
 
-identifier :: Parser String
+identifier :: TranQLParser String
 identifier = T.identifier lexer
 
-braces :: Parser a -> Parser a
+braces :: TranQLParser a -> TranQLParser a
 braces = T.braces lexer
 
-parens :: Parser a -> Parser a
+parens :: TranQLParser a -> TranQLParser a
 parens = T.parens lexer
 
-integer :: Parser Integer
+integer :: TranQLParser Integer
 integer = T.integer lexer
 
-stringLiteral :: Parser String
+stringLiteral :: TranQLParser String
 stringLiteral = T.stringLiteral lexer
 
-float :: Parser Double
+float :: TranQLParser Double
 float = T.float lexer
 
-lexeme :: Parser a -> Parser a
+lexeme :: TranQLParser a -> TranQLParser a
 lexeme = T.lexeme lexer
 
-var :: Parser V
+var :: TranQLParser V
 var = V <$> identifier
 
-field :: Parser Field
-field = Field <$> identifier
-
-string :: Parser String
+string :: TranQLParser String
 string = lexeme (char '\'' *> manyTill anyChar (char '\''))
 
-rlet :: Parser ()
+rlet :: TranQLParser ()
 rlet = reserved "let"
 
-rselect :: Parser ()
+rselect :: TranQLParser ()
 rselect = reserved "select"
 
-rwhere :: Parser ()
+rwhere :: TranQLParser ()
 rwhere = reserved "where"
 
-rin :: Parser ()
+rin :: TranQLParser ()
 rin = reserved "in"
 
-rfresh :: Parser ()
-rfresh = reserved "fresh"
-
-rfloat :: Parser ()
-rfloat = reserved "float"
-
-rinteger :: Parser ()
-rinteger = reserved "integer"
-
-rstring :: Parser ()
-rstring = reserved "string"
-
-rprop :: Parser ()
-rprop = reserved "prop"
-
-rset :: Parser ()
-rset = reserved "set"
-
-rrel :: Parser ()
-rrel = reserved "rel"
-
-ras :: Parser ()
-ras = reserved "as"
-
-rreturn :: Parser ()
+rreturn :: TranQLParser ()
 rreturn = reserved "return"
 
-rlambda :: Parser ()
+rlambda :: TranQLParser ()
 rlambda = reserved "assume"
 
-rfrom :: Parser ()
+rfrom :: TranQLParser ()
 rfrom = reserved "from"
 
-selector :: Parser Selector
-selector = Selector <$> field <*> (reservedOp "=" *> expr)
-
-selector2 :: Parser Selector
-selector2 = flip Selector <$> expr <*> (reservedOp "AS" *> field)
-
-factor :: Parser Expr
+factor :: TranQLParser Expr
 factor = parens expr
    <|> (IntegerConst <$> integer )
    <|> (StringConst <$> stringLiteral )
@@ -148,10 +128,10 @@ factor = parens expr
    <|> (Var <$> var)
    <|> (do
     rlambda
-    vts <- commaSep ((,) <$> (var <* reservedOp ":") <*> typep)
+    vs <- commaSep var
     rin
-    e <- expr
-    return (foldr (uncurry Abs) e vts))
+    e <- expr 
+    return (foldr Abs e vs))
    <|> (do
     rlet
     ves <- commaSep (do
@@ -159,63 +139,36 @@ factor = parens expr
         (do
             reservedOp "="
             e <- expr
-            return (Let v e)) <|>
+            return (\e2 -> App (Abs v e2) e)) <|>
             (do
-                rfrom
+                reservedOp "<-"
                 e <- expr
-                return (From v e)))
+                return (Bind e . Abs v)))
     rin
     e <- expr
     return (foldr ($) e ves))
+   <|> (Return <$> (rreturn *> expr))
    <|> (do
-    rfresh
-    vts <- commaSep ((,) <$> (var <* reservedOp ":") <*> typep)
-    rin
-    e <- expr
-    return (foldr (uncurry Fresh) e vts)) 
-    <|> (Return <$> (rreturn *> expr))
-    <|> try (Select <$> (rselect *> expr <* rwhere) <*> expr)
-    <|> (do
-        rselect
-        selectors <- commaSep selector2
-        froms <- (do
-            rfrom
-            commaSep (do
-                e <- factor
-                v <- var
-                return (From v e)
-            )) <|> return []
-        whereexpr <- (do
-            rwhere
-            expr
-            ) <|> Var (V "true")
-    <|> (Record <$> braces (commaSep selector))
+        rfrom
+        source <- identifier
+        queryParsers <- lift ask
+        case M.lookup source queryParsers of
+            Just (QueryParser selectorP) -> do
+                rselect
+                (selectorExpr, QueryPropParser propP tProp) <- selectorP
+                propExpr <- case tProp of
+                    Just tProp -> (rwhere *> propP) <|> (pure tProp)
+                    Nothing -> rwhere *> propP
+                return (Const "select" `App` Const ("@" ++ source) `App` selectorExpr `App` propExpr)
+            Nothing -> 
+                fail ("cannot find query source " ++ source))
 
      
-expr :: Parser Expr
+expr :: TranQLParser Expr
 expr = do
-    e <- factor 
-    ds <- many (reservedOp "." *> (flip Dot <$> field))
+    e <- factor
     as <- many (flip App <$> factor)
-    return (foldl' (&) (foldl' (&) e ds) as)
+    return (foldl' (&) e as)
 
-tfactor :: Parser T
-tfactor = parens typep
-      <|> (rinteger $> TInteger)
-      <|> (rstring $> TString)
-      <|> (rfloat $> TFloat)
-      <|> (rprop $> TProp)
-      <|> (TRecord <$> braces  (commaSep  tfield))
-      <|> (rset *> (TSet <$> typep))
-      <|> (rrel *> (TRel <$> typep))
-
-tfield :: Parser TField
-tfield = TField <$> field <*> (reservedOp ":" *> typep)
-
-typep :: Parser T
-typep = do
-    t <- tfactor
-    (TFun t <$> (reservedOp "->" *> typep)) <|> return t
-
-parseWithEof :: Parser a -> String -> Either ParseError a
-parseWithEof p = parse (p <* eof) ""    
+parseWithEof :: TranQLParser a -> QueryParserMap -> String -> Either ParseError a
+parseWithEof p queryParsers s = runReader (runParserT (p <* eof) () "" s) queryParsers
