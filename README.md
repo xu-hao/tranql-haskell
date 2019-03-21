@@ -5,17 +5,9 @@
 <Expr> ::= ( <Expr> )
        |   <Var>
        |   <Expr> <Expr>
-       |   ASSUME <Var> : <Type> IN <Expr>
-       |   LET <Var> = <Expr> IN <Expr>
-       |   FRESH <Var> : <Type> IN <Expr>
        |   RETURN <Expr>
-       |   SELECT <Expr> FROM <Expr> WHERE <Expr>
-       |   LET <Var> FROM <Expr> IN <Expr>
-       |   { <Selector>, ..., <Selector> }
-       |   <Expr> . <Field>
-       	
-<Selector> ::= <Expr> AS <Field>
-	   
+       |   BIND <Expr> <Expr>
+       |   FROM <Var> SELECT <Expr> WHERE <Expr>
 ```
 
 ## Static Semantics
