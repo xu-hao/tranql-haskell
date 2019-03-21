@@ -45,13 +45,14 @@ selectorParser :: TranQLParser (Expr, QueryPropParser)
 selectorParser = 
     (do
         s <- symbol "Patient" <|> symbol "Visit"
-        return (Const ("@" ++ s), QueryPropParser {
+        return (Const ("S" ++ s), QueryPropParser {
             propParser = C.propParser,
-            trueProp = Just C.trueProp
+            trueProp = Nothing
             })
         ) <|> (do
-        s <- symbol "AssociationsToAllFeatures"
-        return (Const ("@" ++ s), QueryPropParser {
+        s1 <- symbol "AssociationsToAllFeatures"
+        s2 <- symbol "Patient" <|> symbol "Visit"
+        return (Const ("S" ++ s1 ++ s2), QueryPropParser {
             propParser = ATAF.propParser,
             trueProp = Nothing
             })

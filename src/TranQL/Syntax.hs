@@ -159,7 +159,7 @@ factor = parens expr
                 propExpr <- case tProp of
                     Just tProp -> (rwhere *> propP) <|> (pure tProp)
                     Nothing -> rwhere *> propP
-                return (Const "select" `App` Const ("@" ++ source) `App` selectorExpr `App` propExpr)
+                return (Const "select" `App` Const ("S" ++ source) `App` selectorExpr `App` propExpr)
             Nothing -> 
                 fail ("cannot find query source " ++ source))
 

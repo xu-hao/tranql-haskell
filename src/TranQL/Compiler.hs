@@ -9,6 +9,7 @@ compile :: Expr -> String
 compile (IntegerConst i) = show i
 compile (FloatConst d) = show d
 compile (StringConst s) = show s
+compile (Const s) = s
 compile (Var (V x)) = x
 compile (App e1 e2) = 
         let e1c = compile e1

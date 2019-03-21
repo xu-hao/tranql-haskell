@@ -29,6 +29,12 @@ dependencies:
 - http-conduit
 - aeson
 - singletons
+- lens-aeson
+- text
+- lens
+- hint
+- http-client-tls
+- connection
 
 library:
   source-dirs: src
